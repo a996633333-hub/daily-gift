@@ -41,18 +41,19 @@
         <img id="photo" src="">
         <h2 id="name"></h2>
         <p style="margin:0; color:#888;">目前累積點數</p>
+        
+        <!-- 分數顯示區 -->
         <div id="points">...</div>
         
         <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
         
         <h3>🎁 選擇打卡活動</h3>
         
-        <!-- 👇👇👇 這裡就是你要找的選單 👇👇👇 -->
-        <select id="taskSelect">
+        <!-- 👇 加入 onchange 事件，一選就換分數 -->
+        <select id="taskSelect" onchange="updatePointsDisplay()">
             <option value="event">🔥 1-2月限定：益生菌打卡換禮物</option>
             <option value="regular">👶 乖寶寶打卡換購物金</option>
         </select>
-        <!-- 👆👆👆👆👆👆 -->
 
         <div class="hint">
           <b>💡 規則：</b><br>
@@ -73,13 +74,16 @@
   </div>
 
   <script>
-    // 🔴 1. 你的 LIFF ID
+    // 🔴 1. 你的 LIFF ID (保留你原本的)
     const MY_LIFF_ID = "2008800129-BfdRdtfk";
     
-    // 🔴 2. 你的 Google 網址
+    // 🔴 2. 你的 Google 網址 (保留你原本的)
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwGpZcbo33RVCBmcVtMQmeqXuIaW-04BXK8OLfddKqwwzOoUWfny_-oUrY6AyEhRVIB/exec";
 
     let userProfile = null;
+    
+    // ✨ 全域變數：用來暫存這兩個活動的分數
+    let currentPointsData = { event: 0, regular: 0, total: 0 };
 
     window.onload = async function() {
       const status = document.getElementById('status');
@@ -110,10 +114,32 @@
       });
     }
 
+    // ✨ 修改後的讀取分數：會解析 JSON
     function refreshPoints() {
       fetch(GAS_API_URL + "?action=getPoints&userId=" + userProfile.userId)
-        .then(res => res.text())
-        .then(p => document.getElementById('points').innerText = p);
+        .then(res => res.json()) // ⚠️ 這裡改成 json() 才能讀懂新資料
+        .then(data => {
+            console.log("收到分數:", data);
+            currentPointsData = data; // 把資料存起來
+            updatePointsDisplay();    // 更新畫面
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('points').innerText = "0";
+        });
+    }
+
+    // ✨ 新增函式：根據選單切換顯示的分數
+    function updatePointsDisplay() {
+        const select = document.getElementById('taskSelect');
+        const display = document.getElementById('points');
+        const type = select.value; // 取得目前選的是 event 還是 regular
+
+        if (type === 'event') {
+            display.innerText = currentPointsData.event;
+        } else {
+            display.innerText = currentPointsData.regular;
+        }
     }
 
     function handleFile(input) {
@@ -151,9 +177,9 @@
     function uploadImage(base64Image) {
         const status = document.getElementById('status');
         const btn = document.getElementById('btnUpload');
-        const category = document.getElementById('taskSelect').value; // 取得選單的值
+        const category = document.getElementById('taskSelect').value;
         
-        status.innerText = `小幫手正在核對【${category}】...\n請稍後 ⏳`;
+        status.innerText = `小幫手正在核對【${category == 'event' ? '益生菌限定' : '乖寶寶打卡'}】...\n請稍後 ⏳`;
         
         fetch(GAS_API_URL, {
             method: 'POST',
@@ -164,22 +190,24 @@
                 image: base64Image,
                 userId: userProfile.userId,
                 displayName: userProfile.displayName,
-                category: category // 傳送選單類別
+                category: category
             })
         })
-        .then(response => response.text())
+        .then(response => response.json()) // ⚠️ 這裡也改成 json() 來讀取後台的新格式
         .then(result => {
-            if (result.includes("SUCCESS")) {
-                var parts = result.split(":");
-                var points = parts[1];
-                var details = parts[2];
+            // 後台回傳的結構：{ status: "SUCCESS", added: 5, items: "...", current: {event:.., regular:..} }
+            if (result.status === "SUCCESS") {
                 
                 status.innerText = "✅ 核對成功！";
-                alert(`🎉 恭喜！\n\n小幫手看到了：${details}\n\n本次共獲得 ${points} 點！`);
-                refreshPoints();
+                alert(`🎉 恭喜！\n\n小幫手看到了：${result.items}\n\n本次共獲得 ${result.added} 點！`);
+                
+                // 直接使用回傳的最新分數更新介面，不用再 fetch 一次
+                currentPointsData = result.current;
+                updatePointsDisplay();
+
             } else {
                 status.innerText = "❌ 審核失敗";
-                var reason = result.replace("AI_SAYS: ", "").replace("NO: ", "");
+                var reason = result.message.replace("NO: ", "").replace("AI_SAYS: ", "");
                 alert("😢 審核未通過：\n\n" + reason);
             }
             btn.innerText = "上傳截圖";
