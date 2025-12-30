@@ -13,9 +13,13 @@
     #points { font-size: 80px; color: #ff9800; font-weight: bold; margin: 10px 0; }
     .btn { padding: 15px 0; border: none; border-radius: 50px; font-size: 18px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 15px; display: block; color: white; }
     #btnLogin { background-color: #ff9800; }
-    .upload-box { position: relative; overflow: hidden; margin-top: 20px; }
+    .upload-box { position: relative; overflow: hidden; margin-top: 10px; }
     .btn-upload { background-color: #333; }
     .upload-box input[type=file] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+    
+    /* 下拉選單樣式 */
+    select { width: 100%; padding: 12px; font-size: 16px; border-radius: 10px; border: 2px solid #ff9800; background: white; margin-bottom: 10px; color: #333; font-weight: bold;}
+
     #status { color: #888; font-size: 13px; margin-top: 20px; white-space: pre-wrap; line-height: 1.5; }
     #preview { max-width: 100%; border-radius: 10px; margin-top: 15px; display: none; }
     #loginArea { display: block; }
@@ -41,15 +45,24 @@
         
         <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
         
-        <h3>🎁 天天打卡換好禮</h3>
+        <h3>🎁 選擇打卡活動</h3>
+        
+        <!-- 👇👇👇 這裡就是你要找的選單 👇👇👇 -->
+        <select id="taskSelect">
+            <option value="event">🔥 1-2月限定：益生菌打卡換禮物</option>
+            <option value="regular">👶 乖寶寶打卡換購物金</option>
+        </select>
+        <!-- 👆👆👆👆👆👆 -->
+
         <div class="hint">
-          <b>💡 審核規則：</b><br>
-          1. 截圖需包含關鍵字<b>「打卡換禮物」</b>。<br>
-          2. 截圖需顯示<b>「發文時間」</b>(如：剛剛、今天)。
+          <b>💡 規則：</b><br>
+          1. 請選擇正確的活動類別。<br>
+          2. 貼文寫上<b>「#產品名稱+數量」</b>。<br>
+          3. 截圖需顯示<b>「發文時間」</b>。
         </div>
         
         <div class="upload-box">
-          <button class="btn btn-upload" id="btnUpload">上傳今日打卡</button>
+          <button class="btn btn-upload" id="btnUpload">上傳截圖</button>
           <input type="file" accept="image/*" onchange="handleFile(this)">
         </div>
         
@@ -60,10 +73,10 @@
   </div>
 
   <script>
-    // 🔴 1. 你的 LIFF ID (如果不換新頻道，就用同一個 ID)
+    // 🔴 1. 你的 LIFF ID
     const MY_LIFF_ID = "2008800129-BfdRdtfk";
     
-    // 🔴 2. 你的「新」Google 網址 (記得要去新試算表的 Apps Script 複製)
+    // 🔴 2. 你的 Google 網址
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwGpZcbo33RVCBmcVtMQmeqXuIaW-04BXK8OLfddKqwwzOoUWfny_-oUrY6AyEhRVIB/exec";
 
     let userProfile = null;
@@ -98,12 +111,11 @@
     }
 
     function refreshPoints() {
-      // 這裡原本是 fetch(GAS_API_URL + "https://....") <-- 這樣是錯的
-      // 👇 正確寫法是這樣 (只要變數 + 參數)：
       fetch(GAS_API_URL + "?action=getPoints&userId=" + userProfile.userId)
         .then(res => res.text())
         .then(p => document.getElementById('points').innerText = p);
     }
+
     function handleFile(input) {
       if (input.files && input.files[0]) {
         const file = input.files[0];
@@ -139,7 +151,9 @@
     function uploadImage(base64Image) {
         const status = document.getElementById('status');
         const btn = document.getElementById('btnUpload');
-        status.innerText = "小幫手正在核對打卡...\n請稍後 ⏳";
+        const category = document.getElementById('taskSelect').value; // 取得選單的值
+        
+        status.innerText = `小幫手正在核對【${category}】...\n請稍後 ⏳`;
         
         fetch(GAS_API_URL, {
             method: 'POST',
@@ -149,21 +163,26 @@
             body: JSON.stringify({
                 image: base64Image,
                 userId: userProfile.userId,
-                displayName: userProfile.displayName
+                displayName: userProfile.displayName,
+                category: category // 傳送選單類別
             })
         })
         .then(response => response.text())
         .then(result => {
             if (result.includes("SUCCESS")) {
-                status.innerText = "✅ 打卡成功！";
-                alert("🎉 恭喜！打卡成功，點數 +1");
+                var parts = result.split(":");
+                var points = parts[1];
+                var details = parts[2];
+                
+                status.innerText = "✅ 核對成功！";
+                alert(`🎉 恭喜！\n\n小幫手看到了：${details}\n\n本次共獲得 ${points} 點！`);
                 refreshPoints();
             } else {
                 status.innerText = "❌ 審核失敗";
-                var reason = result.replace("AI_SAYS: ", "");
+                var reason = result.replace("AI_SAYS: ", "").replace("NO: ", "");
                 alert("😢 審核未通過：\n\n" + reason);
             }
-            btn.innerText = "上傳今日打卡";
+            btn.innerText = "上傳截圖";
         })
         .catch(err => {
             status.innerText = "連線異常: " + err;
