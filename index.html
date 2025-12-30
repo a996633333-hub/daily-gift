@@ -98,11 +98,12 @@
     }
 
     function refreshPoints() {
-      fetch(GAS_API_URL + "https://script.google.com/macros/s/AKfycbwGpZcbo33RVCBmcVtMQmeqXuIaW-04BXK8OLfddKqwwzOoUWfny_-oUrY6AyEhRVIB/exec" + userProfile.userId)
+      // 這裡原本是 fetch(GAS_API_URL + "https://....") <-- 這樣是錯的
+      // 👇 正確寫法是這樣 (只要變數 + 參數)：
+      fetch(GAS_API_URL + "?action=getPoints&userId=" + userProfile.userId)
         .then(res => res.text())
         .then(p => document.getElementById('points').innerText = p);
     }
-
     function handleFile(input) {
       if (input.files && input.files[0]) {
         const file = input.files[0];
