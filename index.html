@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>天天打卡換好禮</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #fff8e1; }
+    .card { background: white; padding: 30px 20px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); margin-top: 20px;}
+    #photo { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 15px; border: 4px solid #ff9800; display: none; margin: 0 auto; }
+    h2 { margin: 10px 0; color: #e65100; font-size: 22px;}
+    #points { font-size: 80px; color: #ff9800; font-weight: bold; margin: 10px 0; }
+    .btn { padding: 15px 0; border: none; border-radius: 50px; font-size: 18px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 15px; display: block; color: white; }
+    #btnLogin { background-color: #ff9800; }
+    .upload-box { position: relative; overflow: hidden; margin-top: 20px; }
+    .btn-upload { background-color: #333; }
+    .upload-box input[type=file] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+    #status { color: #888; font-size: 13px; margin-top: 20px; white-space: pre-wrap; line-height: 1.5; }
+    #preview { max-width: 100%; border-radius: 10px; margin-top: 15px; display: none; }
+    #loginArea { display: block; }
+    #memberArea { display: none; }
+    .hint { font-size: 12px; color: #666; background: #eee; padding: 10px; border-radius: 10px; margin-top: 10px; text-align: left;}
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2 id="title">活動載入中...</h2>
+
+    <div id="loginArea">
+        <p>歡迎參加天天打卡活動</p>
+        <button id="btnLogin" class="btn" onclick="liff.login()">LINE 帳號登入</button>
+    </div>
+
+    <div id="memberArea">
+        <img id="photo" src="">
+        <h2 id="name"></h2>
+        <p style="margin:0; color:#888;">目前累積點數</p>
+        <div id="points">...</div>
+        
+        <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
+        
+        <h3>🎁 天天打卡換好禮</h3>
+        <div class="hint">
+          <b>💡 審核規則：</b><br>
+          1. 截圖需包含關鍵字<b>「打卡換禮物」</b>。<br>
+          2. 截圖需顯示<b>「發文時間」</b>(如：剛剛、今天)。
+        </div>
+        
+        <div class="upload-box">
+          <button class="btn btn-upload" id="btnUpload">上傳今日打卡</button>
+          <input type="file" accept="image/*" onchange="handleFile(this)">
+        </div>
+        
+        <img id="preview" src="">
+    </div>
+    
+    <p id="status">系統準備中...</p>
+  </div>
+
+  <script>
+    // 🔴 1. 你的 LIFF ID (如果不換新頻道，就用同一個 ID)
+    const MY_LIFF_ID = "2008783359-9JsMUCsX";
+    
+    // 🔴 2. 你的「新」Google 網址 (記得要去新試算表的 Apps Script 複製)
+    const GAS_API_URL = "https://script.google.com/macros/s/你的新網址/exec";
+
+    let userProfile = null;
+
+    window.onload = async function() {
+      const status = document.getElementById('status');
+      try {
+        await liff.init({ liffId: MY_LIFF_ID });
+        status.innerText = "";
+        if (liff.isLoggedIn()) {
+          showMemberData();
+        } else {
+          document.getElementById('title').innerText = "歡迎光臨";
+        }
+      } catch (err) { status.innerText = "Error: " + err; }
+    };
+
+    function showMemberData() {
+      document.getElementById('loginArea').style.display = "none";
+      document.getElementById('memberArea').style.display = "block";
+      document.getElementById('title').innerText = "天天打卡換好禮";
+      
+      liff.getProfile().then(profile => {
+        userProfile = profile;
+        document.getElementById('name').innerText = profile.displayName;
+        if(profile.pictureUrl) {
+           document.getElementById('photo').src = profile.pictureUrl;
+           document.getElementById('photo').style.display = "block";
+        }
+        refreshPoints();
+      });
+    }
+
+    function refreshPoints() {
+      fetch(GAS_API_URL + "https://script.google.com/macros/s/AKfycbwGpZcbo33RVCBmcVtMQmeqXuIaW-04BXK8OLfddKqwwzOoUWfny_-oUrY6AyEhRVIB/exec" + userProfile.userId)
+        .then(res => res.text())
+        .then(p => document.getElementById('points').innerText = p);
+    }
+
+    function handleFile(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const status = document.getElementById('status');
+        const preview = document.getElementById('preview');
+        const btn = document.getElementById('btnUpload');
+        
+        status.innerText = "圖片處理中...";
+        btn.innerText = "處理中...";
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const maxWidth = 1500;
+                const scaleSize = maxWidth / img.width;
+                canvas.width = maxWidth;
+                canvas.height = img.height * scaleSize;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                preview.src = dataUrl;
+                preview.style.display = 'block';
+                uploadImage(dataUrl);
+            }
+        }
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function uploadImage(base64Image) {
+        const status = document.getElementById('status');
+        const btn = document.getElementById('btnUpload');
+        status.innerText = "小幫手正在核對打卡...\n請稍後 ⏳";
+        
+        fetch(GAS_API_URL, {
+            method: 'POST',
+            mode: 'cors',  
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                image: base64Image,
+                userId: userProfile.userId,
+                displayName: userProfile.displayName
+            })
+        })
+        .then(response => response.text())
+        .then(result => {
+            if (result.includes("SUCCESS")) {
+                status.innerText = "✅ 打卡成功！";
+                alert("🎉 恭喜！打卡成功，點數 +1");
+                refreshPoints();
+            } else {
+                status.innerText = "❌ 審核失敗";
+                var reason = result.replace("AI_SAYS: ", "");
+                alert("😢 審核未通過：\n\n" + reason);
+            }
+            btn.innerText = "上傳今日打卡";
+        })
+        .catch(err => {
+            status.innerText = "連線異常: " + err;
+            btn.innerText = "重試";
+            alert("錯誤：" + err);
+        });
+    }
+  </script>
+</body>
+</html>
